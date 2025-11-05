@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Kartu Tafsir Mimpi</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        /* Font Utama */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #383e44; /* Warna latar belakang gelap */
+            color: #ffffff; /* Teks putih */
+        }
+        
+        /* Kontainer utama admin panel */
+        .admin-panel-container {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        /* Bagian Input dan Generator */
+        .generator-box {
+            background-color: #4b5563; /* Gray 600 */
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Bagian Preview (Mengikuti rasio 1080x1920 / 9:16) */
+        .preview-box {
+            background-color: #2c3238; /* Darker gray for contrast */
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .preview-content-wrapper {
+            /* Rasio 1080px (W) / 1920px (H) = 0.5625 */
+            width: 100%;
+            padding-top: 177.77%; /* 100 / 0.5625 = 177.77% */
+            position: relative;
+        }
+
+        .preview-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://placehold.co/1080x1920/6b4f3f/ffffff?text=LATAR%20BELAKANG%20KARTU');
+            background-size: cover;
+            border: 4px solid #6b4f3f;
+            border-radius: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4%;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        
+        /* Area Ilustrasi dalam kartu */
+        .card-illustration-area {
+            width: 95%;
+            aspect-ratio: 1080 / 1080; /* Menetapkan rasio 1:1 */
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 0.75rem;
+            margin-top: 2%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .card-illustration-area img, .card-illustration-area video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Style untuk tombol Output Size */
+        .output-btn {
+            padding: 8px 12px;
+            border-radius: 0.5rem;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .output-btn.active {
+            background-color: #10b981; /* Emerald 500 */
+            color: white;
+        }
+        .output-btn:not(.active) {
+            background-color: #555e67; /* Slightly lighter gray */
+            color: #ffffff;
+        }
+
+        /* Style untuk tombol Gemini */
+        #generatePromptBtn {
+            background-color: #3b82f6; /* Blue 500 */
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        #generatePromptBtn:hover {
+            background-color: #2563eb;
+        }
+        #generatePromptBtn:active {
+            transform: scale(0.98);
+        }
+
+        /* Style untuk Textarea Output Prompt */
+        #aiOutputPrompt {
+            min-height: 80px;
+            resize: none;
+            background-color: #2c3238; /* Darker background */
+            color: #10b981; /* Green text for output */
+            border: 1px solid #6b7280;
+        }
+
+        /* Styling for the TAFSIR MIMPI text */
+        #cardTitle {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+        
+        /* Styling for the Angka Main box */
+        .angka-main-box {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 0.5rem;
+            width: 95%;
+            margin-bottom: 2%;
+        }
+        
+        /* New style for the movable Judul Mimpi input */
+        .movable-input-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 95%;
+            margin-top: -30px; /* Geser ke atas, menindih sedikit area ilustrasi */
+            margin-bottom: 10px;
+        }
+        
+        .movable-input {
+            background-color: rgba(0, 0, 0, 0.6); /* Latar belakang semi-transparan */
+            border: 1px solid #6b7280;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+        }
+
+    </style>
+    <!-- Firebase SDK (Hanya perlu untuk inisialisasi, auth, dan Firestore) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId = null;
+
+        window.firebaseInit = async () => {
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase config is missing. Data persistence will not work.");
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Otentikasi pengguna
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('userIdDisplay').textContent = `User ID: ${userId}`;
+                    console.log("Authenticated with UID:", userId);
+                    // Contoh: Simpan status login
+                    await setDoc(doc(db, `artifacts/${appId}/users/${userId}/app_state`, 'login_status'), {
+                        last_login: new Date().toISOString()
+                    }, { merge: true });
+                } else {
+                    userId = crypto.randomUUID(); // Fallback for unauthenticated
+                    document.getElementById('userIdDisplay').textContent = `Anon User ID: ${userId}`;
+                    console.log("Signed in anonymously or using fallback UUID:", userId);
+                }
+                document.getElementById('loadingIndicator').classList.add('hidden');
+                document.getElementById('mainAppContent').classList.remove('hidden');
+            });
+            
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken).catch(err => {
+                    console.error("Error signing in with custom token:", err);
+                    signInAnonymously(auth); // Fallback to anonymous
+                });
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+        };
+
+        window.firebaseInit();
+    </script>
+</head>
+
+<body class="admin-panel-container">
+
+    <!-- Konten Utama Aplikasi -->
+    <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center bg-gray-800 z-50">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <p class="ml-4 text-white">Memuat aplikasi dan autentikasi...</p>
+    </div>
+
+    <!-- Perubahan: Menggunakan md:flex-nowrap agar berdampingan di tablet dan desktop -->
+    <div id="mainAppContent" class="flex flex-wrap md:flex-nowrap w-full max-w-7xl gap-6 hidden">
+        
+        <!-- Kolom Kiri: Generator Kartu Tafsir (Input Judul Mimpi dipindahkan) -->
+        <!-- Perubahan: Menggunakan md:w-1/2 -->
+        <div class="generator-box p-6 w-full md:w-1/2 flex flex-col space-y-4">
+            <h2 class="text-xl font-bold border-b border-gray-600 pb-2">Generator Kartu Tafsir (Img/Video)</h2>
+            
+            <!-- Tampilan User ID untuk debug/identifikasi -->
+            <p id="userIdDisplay" class="text-xs text-gray-300"></p>
+
+            <!-- Bagian Output Size -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium">Ukuran Output</label>
+                <div class="flex space-x-2">
+                    <button id="potretBtn" class="output-btn active" data-size="Potret (1080x1350)">Potret (1080x1350)</button>
+                    <button id="storyBtn" class="output-btn" data-size="Story (1080x1920)">Story (1080x1920)</button>
+                </div>
+            </div>
+
+            <!-- Input Nama Brand (Opsional) - Tetap di sini -->
+            <div class="space-y-1">
+                <label for="namaBrand" class="block text-sm font-medium">Nama Brand (opsional)</label>
+                <input type="text" id="namaBrand" class="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="Contoh: SDRT" oninput="updatePreview()">
+            </div>
+
+            <!-- Bagian Generasi Prompt AI Gemini -->
+            <div class="space-y-2 pt-2 border-t border-gray-600">
+                <button id="generatePromptBtn" class="w-full flex items-center justify-center space-x-2 p-3 rounded-full font-bold text-white transition duration-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 5.568A2 2 0 0110 5h4a2 2 0 01.121.568l1.48 4.439a2 2 0 001.764 1.353h3.84a2 2 0 011.832 2.723l-1.48 4.439A2 2 0 0119.879 19H4.121a2 2 0 01-1.832-2.723l1.48-4.439a2 2 0 001.764-1.353l1.48-4.439z"></path></svg>
+                    <span>KLIK JAH BIAR CEPET (Generate All Content)</span>
+                </button>
+                <div class="text-sm text-center text-yellow-300" id="promptStatus"></div>
+                <label for="aiOutputPrompt" class="block text-sm font-medium">Prompt Teks-ke-Gambar (soft, wholesome)</label>
+                <div class="relative">
+                    <textarea id="aiOutputPrompt" class="w-full p-2 rounded border focus:ring-blue-500 focus:border-blue-500" placeholder="Hasil prompt (Inggris) muncul di sini setelah 'Tunggu Bos'..." readonly></textarea>
+                    <button onclick="copyToClipboard('aiOutputPrompt')" class="absolute top-2 right-2 p-1 text-sm bg-gray-600 hover:bg-gray-500 rounded text-white">Copy</button>
+                </div>
+            </div>
+
+            <!-- Input Makna / Tafsir -->
+            <div class="space-y-1 pt-2 border-t border-gray-600">
+                <label for="maknaTafsir" class="block text-sm font-medium">Makna / Tafsir (kutipan)</label>
+                <textarea id="maknaTafsir" class="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="Contoh: Pertanda adanya rasa cemas..." rows="3" oninput="updatePreview()"></textarea>
+            </div>
+
+            <!-- Input Angka Main -->
+            <div class="flex space-x-4">
+                <div class="space-y-1 w-1/2">
+                    <label for="angkaTunggal" class="block text-sm font-medium">Angka Main (Tunggal)</label>
+                    <input type="text" id="angkaTunggal" class="w-full p-2 rounded bg-gray-700 border border-gray-600 text-center" placeholder="Tunggal" oninput="updatePreview()">
+                </div>
+                <div class="space-y-1 w-1/2">
+                    <label for="angka4DBB" class="block text-sm font-medium">4D BB (pisahkan koma / spasi)</label>
+                    <input type="text" id="angka4DBB" class="w-full p-2 rounded bg-gray-700 border border-gray-600 text-center" placeholder="4D BB" oninput="updatePreview()">
+                </div>
+                <div class="space-y-1 w-1/2">
+                    <label for="angka2DBB" class="block text-sm font-medium">2D BB (pisahkan koma / spasi)</label>
+                    <input type="text" id="angka2DBB" class="w-full p-2 rounded bg-gray-700 border border-gray-600 text-center" placeholder="2D BB" oninput="updatePreview()">
+                </div>
+            </div>
+
+            <!-- Input Upload Ilustrasi -->
+            <div class="space-y-2 pt-2 border-t border-gray-600">
+                <label class="block text-sm font-medium">Upload Ilustrasi (Image/Video)</label>
+                <input type="file" id="uploadFile" accept="image/*,video/*" class="w-full p-2 bg-gray-700 rounded border border-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="handleFileChange()">
+            </div>
+            
+            <!-- Tombol Aksi -->
+            <div class="flex space-x-4 pt-4">
+                <button id="downloadBtn" class="w-full p-3 rounded-lg font-bold text-white bg-green-600 hover:bg-green-700 transition duration-200">Download (auto PNG/MP4)</button>
+                <button onclick="resetForm()" class="w-1/3 p-3 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition duration-200">Reset</button>
+            </div>
+        </div>
+
+        <!-- Kolom Kanan: Preview Card -->
+        <!-- Perubahan: Menggunakan md:w-1/2 dan md:max-w-md -->
+        <div class="preview-box p-4 w-full md:w-1/2 max-w-sm md:max-w-md">
+            <h2 class="text-xl font-bold pb-2">Preview (<span id="previewResolution">1080x1920</span>)</h2>
+            
+            <div id="previewWrapper" class="preview-content-wrapper shadow-2xl">
+                <div id="card" class="preview-card">
+                    
+                    <!-- Area Atas: Judul dan Makna -->
+                    <div class="w-full text-center flex flex-col items-center">
+                        <!-- Perubahan: Judul TAFSIR MIMPI dibuat statis -->
+                        <h1 class="text-5xl font-extrabold text-white mb-2 tracking-wider" style="text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);">TAFSIR MIMPI</h1>
+                        
+                        <p id="cardMakna" class="text-lg italic text-white/90 bg-black/50 p-2 rounded-lg max-w-full overflow-hidden text-ellipsis whitespace-normal">Kutipan Makna/Tafsir akan muncul di sini.</p>
+                    </div>
+
+                    <!-- Area Ilustrasi -->
+                    <div class="card-illustration-area">
+                        <span id="illustrationPlaceholder" class="text-white/70 text-center text-sm">Upload Ilustrasi (Img/Video)</span>
+                        <img id="cardImage" class="hidden" alt="Ilustrasi Mimpi">
+                        <video id="cardVideo" class="hidden" autoplay loop muted playsinline></video>
+                    </div>
+                    
+                    <!-- PERUBAHAN BARU: Input Judul Mimpi di sini -->
+                    <div class="movable-input-wrapper">
+                         <input type="text" id="judulMimpiCard" class="movable-input w-full rounded-md text-sm" placeholder="Judul Mimpi (Contoh: MELIHAT PASANGAN BERSELINGKUH)" oninput="updatePreview()">
+                    </div>
+                    <!-- End PERUBAHAN BARU -->
+
+
+                    <!-- Area Bawah: Angka Main -->
+                    <div class="angka-main-box text-center">
+                        <p class="text-xl font-bold text-yellow-300 uppercase mb-2">Angka Main</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <p class="text-sm font-semibold text-gray-300">4D BB</p>
+                                <p id="card4DBB" class="text-2xl font-extrabold text-white tracking-widest">-</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-300">TUNGGAL</p>
+                                <p id="cardTunggal" class="text-3xl font-extrabold text-red-400 tracking-widest">-</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-300">2D BB</p>
+                                <p id="card2DBB" class="text-2xl font-extrabold text-white tracking-widest">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Nama Brand -->
+                    <p id="cardBrand" class="text-xs text-white/50 pt-1 border-t border-white/20 w-full text-center">Powered By: SDRT</p>
+                </div>
+            </div>
+            
+            <p class="text-sm text-gray-400 text-center mt-2">Preview ukuran <span id="previewResolutionFooter">1080x1920 px</span></p>
+
+        </div>
+    </div>
+
+    <!-- Script Utama Aplikasi -->
+    <script>
+        const API_KEY = ""; // Kunci API akan otomatis disediakan oleh Canvas saat fetch.
+        const GENERATE_CONTENT_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+        
+        // --- State/Variable Global ---
+        let currentResolution = 'Story (1080x1920)';
+        const cardWrapper = document.getElementById('previewWrapper');
+        const cardElement = document.getElementById('card');
+
+        // --- Fungsi Utilitas ---
+
+        function copyToClipboard(elementId) {
+            const textarea = document.getElementById(elementId);
+            // Pilih teks di textarea
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // Untuk perangkat seluler
+            
+            try {
+                // Gunakan document.execCommand('copy') karena navigator.clipboard mungkin diblokir di iframe
+                document.execCommand('copy');
+                document.getElementById('promptStatus').textContent = '✅ Prompt berhasil disalin!';
+                setTimeout(() => document.getElementById('promptStatus').textContent = '', 2000);
+            } catch (err) {
+                console.error('Gagal menyalin:', err);
+                document.getElementById('promptStatus').textContent = '❌ Gagal menyalin. Silakan salin manual.';
+                setTimeout(() => document.getElementById('promptStatus').textContent = '', 2000);
+            }
+        }
+
+        function resetForm() {
+            // Perubahan: Mengganti judulMimpi menjadi judulMimpiCard
+            document.getElementById('judulMimpiCard').value = '';
+            document.getElementById('namaBrand').value = 'SDRT';
+            document.getElementById('maknaTafsir').value = '';
+            document.getElementById('angkaTunggal').value = '';
+            document.getElementById('angka4DBB').value = '';
+            document.getElementById('angka2DBB').value = '';
+            document.getElementById('aiOutputPrompt').value = '';
+            document.getElementById('uploadFile').value = ''; // Reset input file
+            
+            // Reset state preview
+            document.getElementById('cardImage').src = '';
+            document.getElementById('cardImage').classList.add('hidden');
+            document.getElementById('cardVideo').src = '';
+            document.getElementById('cardVideo').classList.add('hidden');
+            document.getElementById('illustrationPlaceholder').classList.remove('hidden');
+
+            // Reset preview dan resolusi
+            document.getElementById('storyBtn').click(); // Kembali ke resolusi Story
+            updatePreview();
+        }
+
+        // --- Logika UI dan Preview ---
+
+        function handleResolutionChange(newResolution, button) {
+            currentResolution = newResolution;
+
+            // Update class tombol
+            document.querySelectorAll('.output-btn').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Set rasio preview
+            let paddingTop;
+            if (newResolution === 'Potret (1080x1350)') {
+                // 1080 / 1350 = 0.8. padding-top = 1 / 0.8 * 100 = 125%
+                paddingTop = '125%'; 
+            } else { // Story (1080x1920)
+                // 1080 / 1920 = 0.5625. padding-top = 1 / 0.5625 * 100 = 177.77%
+                paddingTop = '177.77%'; 
+            }
+
+            cardWrapper.style.paddingTop = paddingTop;
+            
+            // Update teks resolusi
+            const resText = newResolution.split(' ')[0] === 'Potret' ? '1080x1350' : '1080x1920';
+            document.getElementById('previewResolution').textContent = resText;
+            document.getElementById('previewResolutionFooter').textContent = resText + ' px';
+        }
+        
+        // Listener untuk tombol resolusi
+        document.getElementById('potretBtn').addEventListener('click', function() {
+            handleResolutionChange(this.dataset.size, this);
+        });
+
+        document.getElementById('storyBtn').addEventListener('click', function() {
+            handleResolutionChange(this.dataset.size, this);
+        });
+
+        function updatePreview() {
+            // Perubahan: Judul TAFSIR MIMPI di card tidak lagi diubah
+            // const judulMimpi = document.getElementById('judulMimpiCard').value.toUpperCase();
+            // document.getElementById('cardTitle').textContent = judulMimpi || 'TAFSIR MIMPI';
+
+            // Nama Brand
+            const brand = document.getElementById('namaBrand').value;
+            document.getElementById('cardBrand').textContent = brand ? `Powered By: ${brand}` : 'Powered By: SDRT';
+
+            // Makna / Tafsir
+            const makna = document.getElementById('maknaTafsir').value;
+            document.getElementById('cardMakna').textContent = makna || 'Kutipan Makna/Tafsir akan muncul di sini.';
+
+            // Angka Main (Tunggal)
+            const tunggal = document.getElementById('angkaTunggal').value.trim() || '-';
+            document.getElementById('cardTunggal').textContent = tunggal;
+
+            // Angka 4D BB
+            const bb4d = formatAngka(document.getElementById('angka4DBB').value, 4);
+            document.getElementById('card4DBB').textContent = bb4d || '-';
+
+            // Angka 2D BB
+            const bb2d = formatAngka(document.getElementById('angka2DBB').value, 2);
+            document.getElementById('card2DBB').textContent = bb2d || '-';
+            
+            // Perubahan: Menambahkan update untuk Judul Mimpi di card
+            const judulMimpi = document.getElementById('judulMimpiCard').value.toUpperCase();
+            document.getElementById('judulMimpiCard').value = judulMimpi; // Memastikan input selalu uppercase
+        }
+
+        function formatAngka(input, digits) {
+            if (!input) return '';
+            
+            // Bersihkan input dari spasi berlebihan dan split berdasarkan koma atau spasi
+            let numbers = input.split(/[,\s]+/)
+                               .filter(n => n.length > 0 && n.length === digits) // Filter angka sesuai panjang
+                               .map(n => n.trim());
+
+            // Tampilkan 3 angka pertama saja (jika ada)
+            return numbers.slice(0, 3).join(' ');
+        }
+        
+        function handleFileChange() {
+            const fileInput = document.getElementById('uploadFile');
+            const file = fileInput.files[0];
+            const imageEl = document.getElementById('cardImage');
+            const videoEl = document.getElementById('cardVideo');
+            const placeholderEl = document.getElementById('illustrationPlaceholder');
+
+            // Reset tampilan sebelumnya
+            imageEl.classList.add('hidden');
+            videoEl.classList.add('hidden');
+            placeholderEl.classList.remove('hidden');
+            imageEl.src = '';
+            videoEl.src = '';
+
+            if (file) {
+                const url = URL.createObjectURL(file);
+                placeholderEl.classList.add('hidden');
+                
+                if (file.type.startsWith('image/')) {
+                    imageEl.src = url;
+                    imageEl.classList.remove('hidden');
+                } else if (file.type.startsWith('video/')) {
+                    videoEl.src = url;
+                    videoEl.classList.remove('hidden');
+                    videoEl.load(); // Memastikan video dimuat
+                } else {
+                    placeholderEl.textContent = 'Jenis file tidak didukung.';
+                    placeholderEl.classList.remove('hidden');
+                }
+            } else {
+                placeholderEl.textContent = 'Upload Ilustrasi (Img/Video)';
+            }
+        }
+
+        // --- Logika AI Gemini untuk Prompt Generation ---
+
+        async function generatePrompt() {
+            // Perubahan: Mengambil input dari judulMimpiCard
+            const judulMimpi = document.getElementById('judulMimpiCard').value.trim();
+            const brandName = document.getElementById('namaBrand').value.trim(); 
+            const promptOutput = document.getElementById('aiOutputPrompt');
+            const statusEl = document.getElementById('promptStatus');
+            const generateBtn = document.getElementById('generatePromptBtn');
+
+            if (!judulMimpi) {
+                statusEl.textContent = 'Masukkan Judul Mimpi di kolom card preview terlebih dahulu.';
+                return;
+            }
+
+            // UI Feedback
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div><span class="ml-2">Tunggu Bos... (AI Sedang Bekerja)</span>';
+            promptOutput.value = 'AI sedang menganalisis mimpi Anda...';
+            statusEl.textContent = 'Membuat Makna, Angka, dan Prompt Gambar...';
+
+            const systemPrompt = `Anda adalah generator konten untuk kartu tafsir mimpi yang menghasilkan respons dalam format JSON. Tugas Anda adalah memberikan tafsir, angka keberuntungan, dan prompt gambar berdasarkan judul mimpi yang diberikan.
+            Aturan:
+            1. Makna/Tafsir harus ringkas, lugas, dan berupa kutipan (maksimal 3 kalimat).
+            2. Angka Tunggal harus 1 digit (0-9).
+            3. Angka 4D BB harus 4 digit dan dipisahkan koma (maksimal 3 angka).
+            4. Angka 2D BB harus 2 digit dan dipisahkan koma (maksimal 3 angka).
+            5. Image Prompt harus dalam Bahasa Inggris, visual, lembut, dan fantastik (soft, wholesome, fantasy art style). Jangan sertakan kata-kata sensitif atau kekerasan.`;
+            
+            const userQuery = `Judul Mimpi: ${judulMimpi}. Nama Brand/Situs: ${brandName}. Hasilkan tafsir, angka main, dan prompt gambar untuk mimpi ini.`;
+
+            // Skema JSON yang diharapkan
+            const responseSchema = {
+                type: "OBJECT",
+                properties: {
+                    "makna_tafsir": { "type": "STRING", "description": "Tafsir mimpi dalam bahasa Indonesia (maksimal 3 kalimat)." },
+                    "angka_tunggal": { "type": "STRING", "description": "Angka tunggal 1 digit (0-9)." },
+                    "angka_4d_bb": { "type": "STRING", "description": "Angka 4D BB (4 digit), dipisahkan koma, contoh: '8910, 4521, 0098'." },
+                    "angka_2d_bb": { "type": "STRING", "description": "Angka 2D BB (2 digit), dipisahkan koma, contoh: '12, 34, 56'." },
+                    "image_prompt_en": { "type": "STRING", "description": "Prompt gambar AI yang lembut, fantastik, dan visual dalam Bahasa Inggris." }
+                },
+                required: ["makna_tafsir", "angka_tunggal", "angka_4d_bb", "angka_2d_bb", "image_prompt_en"]
+            };
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema
+                }
+            };
+
+            let response;
+            try {
+                // Implementasi Exponential Backoff
+                const maxRetries = 5;
+                let delay = 1000;
+                
+                for (let i = 0; i < maxRetries; i++) {
+                    response = await fetch(GENERATE_CONTENT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        break; 
+                    }
+
+                    if (response.status === 429 && i < maxRetries - 1) {
+                        console.log(`429: Too Many Requests. Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; 
+                    } else {
+                        throw new Error(`API call failed with status ${response.status}`);
+                    }
+                }
+                
+                if (!response || !response.ok) {
+                    throw new Error("Gagal mendapatkan respons dari API setelah beberapa kali percobaan.");
+                }
+
+                const result = await response.json();
+                const jsonString = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (jsonString) {
+                    const parsedData = JSON.parse(jsonString);
+                    
+                    // 1. Isi Prompt Gambar
+                    promptOutput.value = parsedData.image_prompt_en.trim();
+
+                    // 2. Isi Makna/Tafsir
+                    document.getElementById('maknaTafsir').value = parsedData.makna_tafsir.trim();
+
+                    // 3. Isi Angka Main (Konversi dari format koma ke spasi jika perlu)
+                    document.getElementById('angkaTunggal').value = parsedData.angka_tunggal.trim();
+                    
+                    // Ganti koma dengan spasi untuk tampilan yang lebih baik di input field
+                    document.getElementById('angka4DBB').value = parsedData.angka_4d_bb.trim().replace(/,/g, ' '); 
+                    document.getElementById('angka2DBB').value = parsedData.angka_2d_bb.trim().replace(/,/g, ' '); 
+
+                    statusEl.textContent = '✅ Semua konten berhasil dibuat dan diisi!';
+                    
+                    // Perbarui preview kartu
+                    updatePreview();
+
+                } else {
+                    promptOutput.value = 'Error: Gagal mendapatkan data lengkap. Coba lagi.';
+                    statusEl.textContent = '❌ Gagal membuat konten.';
+                }
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                promptOutput.value = `Error: Terjadi kesalahan saat menghubungi AI. (${error.message})`;
+                statusEl.textContent = '❌ Error koneksi AI atau parsing data.';
+            } finally {
+                // Kembalikan UI ke normal
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 5.568A2 2 0 0110 5h4a2 2 0 01.121.568l1.48 4.439a2 2 0 001.764 1.353h3.84a2 2 0 011.832 2.723l-1.48 4.439A2 2 0 0119.879 19H4.121a2 2 0 01-1.832-2.723l1.48-4.439a2 2 0 001.764-1.353l1.48-4.439z"></path></svg><span>KLIK JAH BIAR CEPET (Generate All Content)</span>';
+                setTimeout(() => statusEl.textContent = '', 4000);
+            }
+        }
+        
+        // --- Inisialisasi dan Listener ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set nilai default dan update preview
+            document.getElementById('namaBrand').value = 'SDRT';
+            // Panggil fungsi update preview sekali saat pertama kali dimuat
+            updatePreview(); 
+        });
+
+        // Tambahkan listener ke tombol AI
+        document.getElementById('generatePromptBtn').addEventListener('click', generatePrompt);
+
+        // NOTE: Fungsi download (PNG/MP4) memerlukan library eksternal (seperti html2canvas atau konversi canvas ke video) yang tidak dapat disertakan dalam solusi satu file dan memerlukan logika sisi server atau browser yang lebih kompleks. Untuk tujuan demonstrasi Admin Panel, fungsi ini di-stub/disederhanakan.
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            alert('Fungsi Download di sini memerlukan library dan logika kompleks (misalnya, html2canvas untuk PNG, atau konversi canvas ke video). Anda harus mengimplementasikannya secara terpisah di lingkungan produksi.');
+        });
+        
+        // Panggil fungsi handleResolutionChange untuk inisialisasi tampilan awal
+        document.getElementById('storyBtn').click(); // Default ke Story 1080x1920
+    </script>
+</body>
+</html>

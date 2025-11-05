@@ -1,2 +1,0 @@
-# tafrsir1
-jakarta
